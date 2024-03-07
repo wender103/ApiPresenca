@@ -65,6 +65,9 @@ app.post('/api/updatePresence', async (req, res) => {
 
     var connectedRef = admin.firestore.FieldValue.serverTimestamp(); // Corrigido para admin.firestore
 
+    // Log do email de quem fez a requisição
+    console.log(`Requisição recebida de ${email}`);
+
     // Atualize a variável global hasUsersOnline com base no status de presença recebido
     hasUsersOnline = isOnline;
 
@@ -94,6 +97,11 @@ app.post('/api/updatePresence', async (req, res) => {
         userPresenceRef.update(updateData)
         .then(() => {
             res.status(200).send('Presença atualizada com sucesso');
+            if (isOnline) {
+                console.log(`Usuário ${email} está online :)`);
+            } else {
+                console.log(`Usuário ${email} está offline :(`);
+            }
         })
         .catch(error => {
             console.error('Erro ao atualizar presença:', error);
