@@ -44,7 +44,7 @@ setInterval(() => {
             if (timeDifference > 5) {
                 // Se o usuário não foi atualizado como online nos últimos 5 minutos, marque-o como offline
                 const userPresenceRef = db.collection('Presence').doc(doc.id);
-                userPresenceRef.update({ Online: false })
+                userPresenceRef.update({ Online: false, Ouvindo: {ID: null} })
                 .then(() => {
                     console.log(`Usuário ${doc.id} marcado como offline`);
                 })
