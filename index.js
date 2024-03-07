@@ -85,11 +85,17 @@ app.post('/api/updatePresence', async (req, res) => {
 
     // Verifica se há mudanças nas informações antes de atualizar
     if (isOnline !== userData.Online || listeningMusicId !== userData.Ouvindo.ID) {
+        let id_musica = null
+
+        if(isOnline) {
+            id_musica = listeningMusicId
+        }
+
         const updateData = {
             Online: isOnline,
             LastScreen: connectedRef,
             Ouvindo: {
-                ID: listeningMusicId || null
+                ID: id_musica
             }
         };
 
