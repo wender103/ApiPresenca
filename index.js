@@ -15,7 +15,9 @@ admin.initializeApp({
 const db = admin.firestore(); // Aqui está a instância do Firestore
 // Não há necessidade de inicializar a autenticação aqui, já que não é usada
 
-app.use(cors()); // Defina o middleware cors aqui
+// Configuração do CORS aqui
+app.use(cors({ origin: 'https://wender103.github.io' }));
+
 app.use(bodyParser.json());
 
 let hasUsersOnline = false; // Variável global para controlar se há usuários online
