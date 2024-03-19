@@ -67,7 +67,7 @@ setInterval(() => {
 
 // Endpoint para atualizar a presença do usuário
 app.post('/api/updatePresence', async (req, res) => {
-    const { email, isOnline, listeningMusicId } = req.body;
+    const { email, isOnline, listeningMusicId, colorimg } = req.body;
 
     var connectedRef = admin.firestore.FieldValue.serverTimestamp(); // Corrigido para admin.firestore
 
@@ -102,7 +102,8 @@ app.post('/api/updatePresence', async (req, res) => {
             LastScreen: connectedRef,
             Ouvindo: {
                 ID: id_musica
-            }
+            },
+            CorBackground: colorimg
         };
 
         // Atualiza apenas se houver diferenças
