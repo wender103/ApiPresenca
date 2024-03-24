@@ -1,131 +1,115 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const admin = require('firebase-admin');
-const cors = require('cors'); // Importe o pacote cors
+const express = require('express')
+const bodyParser = require('body-parser')
+const admin = require('firebase-admin')
+const cors = require('cors')
 
-const app = express();
-const port = 3000;
 
-// Inicialize o Firebase Admin SDK
-const serviceAccount = require('./Assets/Json/musiverse-e89c0-firebase-adminsdk-lan8j-d90c98ef11.json');
+const serviceAccount = require('./Assets/Json/musiverse-e89c0-firebase-adminsdk-lan8j-d90c98ef11.json')
+
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+    credential: admin.credential.cert(serviceAccount)
+})
 
-const db = admin.firestore(); // Aqui está a instância do Firestore
-// Não há necessidade de inicializar a autenticação aqui, já que não é usada
+const app = express()
+app.use(bodyParser.json())
+app.use(cors())
+const port = 3000
+const db = admin.firestore()
 
-// Configuração do CORS aqui
-app.use(cors({ origin: 'https://wender103.github.io' }));
+let UsersPresences = []
+let infosApi = {}
 
-app.use(bodyParser.json());
+const serverTimestamp = admin.firestore.FieldValue.serverTimestamp()
 
-let hasUsersOnline = false; // Variável global para controlar se há usuários online
+function Checar_User_Online() {
+    const currentTime = new Date() // Obtenha o tempo atual
+    
+    for (let c = 0; c < UsersPresences.length; c++) {
+        if (UsersPresences[c].Email != infosApi.email) {
+            const lastScreenDate = new Date(UsersPresences[c].InfosUser.LastScreen.toDate())
+            
+            // Verificar se lastScreenDate é uma data válida
+            if (!isNaN(lastScreenDate.getTime())) {
+                const diferencaEmMilissegundos = currentTime.getTime() - lastScreenDate.getTime()
+                const diferencaEmMinutos = Math.floor(diferencaEmMilissegundos / (1000 * 60))
 
-// Verifica a presença dos usuários a cada 2 minutos se houver usuários online
-setInterval(() => {
-    if (!hasUsersOnline) {
-        console.log('Nenhum usuário online. Suspensão das verificações de presença.');
-        return;
-    }
+                let darUpdadeUser = false
+                let estado = 'Offline'
 
-    db.collection('Presence').where('Online', '==', true).get()
-    .then(snapshot => {
-        if (snapshot.empty) {
-            console.log('Nenhum usuário online. Suspensão das verificações de presença.');
-            hasUsersOnline = false;
-            return;
-        }
+                //* Caso o user esteja online
+                if(diferencaEmMinutos < 3 && !UsersPresences[c].InfosUser.Online) {
+                    UsersPresences[c].InfosUser.Online = true
+                    darUpdadeUser = true
+                    estado = 'Online'
 
-        snapshot.forEach(doc => {
-            const userData = doc.data();
-            const lastScreen = userData.LastScreen.toDate();
-            const currentTime = new Date();
-            const timeDifference = (currentTime - lastScreen) / (1000 * 60); // Diferença de tempo em minutos
+                    //* Caso o user esteja offline
+                } else if(diferencaEmMinutos > 2 && UsersPresences[c].InfosUser.Online) {
+                    UsersPresences[c].InfosUser.Online = false
+                    UsersPresences[c].InfosUser.CorBackground = null
+                    UsersPresences[c].InfosUser.Ouvindo = { ID: null }
+                    darUpdadeUser = true
+                }
 
-            if(userData.Online) {
-                hasUsersOnline = true
-            }
-
-            if (timeDifference > 3) {
-                // Se o usuário não foi atualizado como online nos últimos 5 minutos, marque-o como offline
-                const userPresenceRef = db.collection('Presence').doc(doc.id);
-                userPresenceRef.update({ Online: false, Ouvindo: {ID: null} })
-                .then(() => {
-                    console.log(`Usuário ${doc.id} marcado como offline`);
-                })
-                .catch(error => {
-                    console.error(`Erro ao marcar o usuário ${doc.id} como offline:`, error);
-                });
-            }
-        });
-    })
-    .catch(error => {
-        console.error('Erro ao verificar presença dos usuários:', error);
-    });
-}, 2 * 60 * 1000); // 2 minutos em milissegundos
-
-// Endpoint para atualizar a presença do usuário
-app.post('/api/updatePresence', async (req, res) => {
-    const { email, isOnline, listeningMusicId, colorimg } = req.body;
-
-    var connectedRef = admin.firestore.FieldValue.serverTimestamp(); // Corrigido para admin.firestore
-
-    // Log do email de quem fez a requisição
-    console.log(`Requisição recebida de ${email}`);
-
-    // Atualize a variável global hasUsersOnline com base no status de presença recebido
-    hasUsersOnline = isOnline;
-
-    // Obtém a referência do documento do usuário no Firestore
-    const userPresenceRef = db.collection('Presence').doc(email);
-
-    // Obtém o snapshot do documento para comparar as informações existentes
-    const snapshot = await userPresenceRef.get();
-    if (!snapshot.exists) {
-        console.error(`Documento para o usuário ${email} não encontrado`);
-        return res.status(404).send('Documento de usuário não encontrado');
-    }
-
-    const userData = snapshot.data();
-
-    // Verifica se há mudanças nas informações antes de atualizar
-    if (isOnline !== userData.Online || listeningMusicId !== userData.Ouvindo.ID) {
-        let id_musica = null
-
-        if(isOnline) {
-            id_musica = listeningMusicId
-        }
-
-        const updateData = {
-            Online: isOnline,
-            LastScreen: connectedRef,
-            Ouvindo: {
-                ID: id_musica
-            },
-            CorBackground: colorimg
-        };
-
-        // Atualiza apenas se houver diferenças
-        userPresenceRef.update(updateData)
-        .then(() => {
-            res.status(200).send('Presença atualizada com sucesso');
-            if (isOnline) {
-                console.log(`Usuário ${email} está online :)`);
+                if(darUpdadeUser) {
+                    console.log(`Atualizou o user: ${UsersPresences[c].Email}, min: ${diferencaEmMinutos}, estado: ${estado}`)
+                    db.collection('Presence').doc(UsersPresences[c].Email).update(UsersPresences[c].InfosUser)
+                }
+                
             } else {
-                console.log(`Usuário ${email} está offline :(`);
+                console.log(`Erro: LastScreen não é uma data válida para o usuário ${UsersPresences[c].Email}`)
+            }
+        }
+    }
+}
+
+app.post('/api/updatePresence', async (req, res) => {
+    UsersPresences = []
+    const { email, isOnline, listeningMusicId, colorimg } = req.body
+
+    infosApi = { email, isOnline, listeningMusicId, colorimg }
+
+    db.collection('Presence').get().then((snapshot) => {
+        snapshot.docs.forEach(Users => {
+            let UserAtual = {
+                Email: Users.id,
+                InfosUser: Users.data()
+            }
+
+            UsersPresences.push(UserAtual)
+
+            if (Users.id == email) {
+                const infosUserAtual = {
+                    LastScreen: serverTimestamp,
+                    Online: isOnline,
+                    CorBackground: colorimg
+                }
+
+                // Verificar se listeningMusicId está definido antes de adicioná-lo ao objeto
+                if (listeningMusicId !== undefined && isOnline == true) {
+                    infosUserAtual.Ouvindo = { ID: listeningMusicId }
+                } else {
+                    infosUserAtual.CorBackground = null
+                    infosUserAtual.Ouvindo = { ID: null }
+                }
+
+                db.collection('Presence').doc(Users.id).update(infosUserAtual).then(() => {
+                    res.status(200).send('Presença atualizada com sucesso')
+                    if (isOnline) {
+                        console.log(`Usuário ${email} está online :)`)
+                    } else {
+                        console.log(`Usuário ${email} está offline :(`)
+                    }
+                }).catch(error => {
+                    console.error('Erro ao atualizar presença:', error)
+                    res.status(500).send('Erro interno do servidor ao atualizar presença')
+                })
+
+                Checar_User_Online()
             }
         })
-        .catch(error => {
-            console.error('Erro ao atualizar presença:', error);
-            res.status(500).send('Erro interno do servidor ao atualizar presença');
-        });
-    } else {
-        console.log('Nenhuma alteração nas informações de presença do usuário');
-        res.status(200).send('Nenhuma alteração nas informações de presença do usuário');
-    }
-});
+    })
+})
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+  console.log(`Server is running on port ${port}`)
+})
