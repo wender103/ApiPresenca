@@ -13,7 +13,7 @@ admin.initializeApp({
 const app = express()
 app.use(bodyParser.json())
 app.use(cors())
-const port = 3000
+const port = 4000
 const db = admin.firestore()
 
 let UsersPresences = []
@@ -22,6 +22,7 @@ let infosApi = {}
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp()
 
 function Checar_User_Online() {
+    console.log('Checando perfil')
     const currentTime = new Date() // Obtenha o tempo atual
     
     for (let c = 0; c < UsersPresences.length; c++) {
@@ -50,6 +51,8 @@ function Checar_User_Online() {
                     darUpdadeUser = true
                 }
 
+                console.log(`----${UsersPresences[c].Email}, min: ${diferencaEmMinutos}, estado: ${estado}-----`)
+
                 if(darUpdadeUser) {
                     console.log(`Atualizou o user: ${UsersPresences[c].Email}, min: ${diferencaEmMinutos}, estado: ${estado}`)
                     db.collection('Presence').doc(UsersPresences[c].Email).update(UsersPresences[c].InfosUser)
@@ -65,9 +68,11 @@ function Checar_User_Online() {
 app.post('/api/updatePresence', async (req, res) => {
     UsersPresences = []
     const { email, isOnline, listeningMusicId, colorimg } = req.body
+    console.log(`Nova requisição de ${email}`)
 
     infosApi = { email, isOnline, listeningMusicId, colorimg }
 
+    let checar_users = false
     db.collection('Presence').get().then((snapshot) => {
         snapshot.docs.forEach(Users => {
             let UserAtual = {
@@ -95,18 +100,23 @@ app.post('/api/updatePresence', async (req, res) => {
                 db.collection('Presence').doc(Users.id).update(infosUserAtual).then(() => {
                     res.status(200).send('Presença atualizada com sucesso')
                     if (isOnline) {
-                        console.log(`Usuário ${email} está online :)`)
+                        // console.log(`Usuário ${email} está online :)`)
                     } else {
-                        console.log(`Usuário ${email} está offline :(`)
+                        // console.log(`Usuário ${email} está offline :(`)
                     }
                 }).catch(error => {
                     console.error('Erro ao atualizar presença:', error)
                     res.status(500).send('Erro interno do servidor ao atualizar presença')
                 })
 
-                Checar_User_Online()
             }
+
         })
+        
+        if(!checar_users) {
+            checar_users = true
+            Checar_User_Online()
+        }
     })
 })
 
